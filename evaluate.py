@@ -69,7 +69,7 @@ def main():
             False, # No random mirror.
             coord)
         image, label = reader.image, reader.label
-    image_batch, label_batch = tf.expand_dims(image, dim=0), tf.expand_dims(label, dim=0) # Add one batch dimension.
+    image_batch, label_batch = tf.expand_dims(image, axis=0), tf.expand_dims(label, axis=0) # Add one batch dimension.
 
     # Create network.
     net = DeepLabResNetModel({'data': image_batch}, is_training=False)
@@ -80,8 +80,8 @@ def main():
     # Predictions.
     raw_output = net.layers['fc1_voc12']
     raw_output = tf.image.resize_bilinear(raw_output, tf.shape(image_batch)[1:3,])
-    raw_output = tf.argmax(raw_output, dimension=3)
-    pred = tf.expand_dims(raw_output, dim=3) # Create 4-d tensor.
+    raw_output = tf.argmax(raw_output, axis=3)
+    pred = tf.expand_dims(raw_output, axis=3) # Create 4-d tensor.
     
     # mIoU
     pred = tf.reshape(pred, [-1,])

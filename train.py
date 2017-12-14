@@ -8,20 +8,19 @@ which contains approximately 10000 images for training and 1500 images for valid
 from __future__ import print_function
 
 import argparse
-from datetime import datetime
 import os
 import sys
 import time
 
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 
 from deeplab_resnet import DeepLabResNetModel, ImageReader, decode_labels, inv_preprocess, prepare_label
 
-n_classes = 1
+n_classes = 2
 
-BATCH_SIZE = 32
-DATA_DIRECTORY = '/home/andrei/data/deeplab_seg/'
+BATCH_SIZE = 5
+DATA_DIRECTORY = ''
 DATA_LIST_PATH = '/home/andrei/data/deeplab_seg/train.txt'
 INPUT_SIZE = '500,250'
 LEARNING_RATE = 2.5e-4
@@ -155,7 +154,7 @@ def main():
 
     # Predictions: ignoring all predictions with labels greater or equal than n_classes
     raw_prediction = tf.reshape(raw_output, [-1, n_classes])
-    label_proc = prepare_label(label_batch, tf.pack(raw_output.get_shape()[1:3]), one_hot=False) # [batch_size, h, w]
+    label_proc = prepare_label(label_batch, tf.stack(raw_output.get_shape()[1:3]), one_hot=False) # [batch_size, h, w]
     raw_gt = tf.reshape(label_proc, [-1,])
     indices = tf.squeeze(tf.where(tf.less_equal(raw_gt, n_classes - 1)), 1)
     gt = tf.cast(tf.gather(raw_gt, indices), tf.int32)
@@ -166,11 +165,12 @@ def main():
     loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=prediction, labels=gt)
     l2_losses = [args.weight_decay * tf.nn.l2_loss(v) for v in tf.trainable_variables() if 'weights' in v.name]
     reduced_loss = tf.reduce_mean(loss) + tf.add_n(l2_losses)
+    tf.summary.scalar('train_loss', reduced_loss)
 
     # Processed predictions: for visualisation.
     raw_output_up = tf.image.resize_bilinear(raw_output, tf.shape(image_batch)[1:3,])
-    raw_output_up = tf.argmax(raw_output_up, dimension=3)
-    pred = tf.expand_dims(raw_output_up, dim=3)
+    raw_output_up = tf.argmax(raw_output_up, axis=3)
+    pred = tf.expand_dims(raw_output_up, axis=3)
 
     # Image summary.
     images_summary = tf.py_func(inv_preprocess, [image_batch, args.save_num_images], tf.uint8)
@@ -178,10 +178,9 @@ def main():
     preds_summary = tf.py_func(decode_labels, [pred, args.save_num_images], tf.uint8)
 
     total_summary = tf.summary.image('images',
-                                     tf.concat(2, [images_summary, labels_summary, preds_summary]),
-                                     max_outputs=args.save_num_images) # Concatenate row-wise.
-    summary_writer = tf.summary.FileWriter(args.snapshot_dir,
-                                           graph=tf.get_default_graph())
+             tf.concat(axis=2, values=[images_summary, labels_summary, preds_summary]),
+             max_outputs=args.save_num_images) # Concatenate row-wise.
+    summary_writer = tf.summary.FileWriter(args.snapshot_dir, graph=tf.get_default_graph())
 
     # Define loss and optimisation parameters.
     base_lr = tf.constant(args.learning_rate)
