@@ -163,9 +163,14 @@ def main():
     gt = tf.cast(tf.gather(raw_gt, indices), tf.int32)
     prediction = tf.gather(raw_prediction, indices)
 
+    class_weights = [1.0, # Background
+                     3.0] # Foreground
+    class_weights = tf.gather(class_weights, onehot_labels)
+    class_weights = tf.gather(class_weights, labels)
+    import bpdb; bpdb.set_trace()
 
     # Pixel-wise softmax loss.
-    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=prediction, labels=gt)
+    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=prediction, labels=gt, weights=class_weights)
     l2_losses = [args.weight_decay * tf.nn.l2_loss(v) for v in tf.trainable_variables() if 'weights' in v.name]
     reduced_loss = tf.reduce_mean(loss) + tf.add_n(l2_losses)
     tf.summary.scalar('train_loss', reduced_loss)

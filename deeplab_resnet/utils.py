@@ -6,8 +6,6 @@ n_classes = 2
 # color map
 label_colors = [(0,0,0), (255,255,255)]
                 # 0=background, 1=spray
-# image mean
-IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
 
 def decode_labels(mask, num_images=1):
     """Decode batch of segmentation masks.
@@ -65,5 +63,5 @@ def inv_preprocess(imgs, num_images):
   assert(n >= num_images), 'Batch size %d should be greater or equal than number of images to save %d.' % (n, num_images)
   outputs = np.zeros((num_images, h, w, c), dtype=np.uint8)
   for i in range(num_images):
-    outputs[i] = (imgs[i] + IMG_MEAN)[:, :, ::-1].astype(np.uint8)
+    outputs[i] = (imgs[i] * 255)[:, :, ::-1].astype(np.uint8)
   return outputs

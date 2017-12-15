@@ -113,8 +113,8 @@ def read_images_from_disk(input_queue, input_size, random_scale, random_mirror):
     img_r, img_g, img_b = tf.split(img, 3, axis=2)
     img = tf.cast(tf.concat([img_b, img_g, img_r], 2), dtype=tf.float32)
 
-    # Extract mean.
-    img -= IMG_MEAN
+    # Normalize image to 0-1
+    img = tf.scalar_mul(img, 1.0/255.0)
     label = tf.image.decode_png(label_contents, channels=1)
 
     if input_size is not None:
