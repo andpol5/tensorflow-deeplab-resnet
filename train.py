@@ -20,18 +20,20 @@ from deeplab_resnet import DeepLabResNetModel, ImageReader, decode_labels, inv_p
 
 n_classes = 2
 
-BATCH_SIZE = 5
+BATCH_SIZE = 8
 DATA_DIRECTORY = ''
 DATA_LIST_PATH = '/home/andrei/data/deeplab_seg/train.txt'
 INPUT_SIZE = '500,250'
 LEARNING_RATE = 2.5e-4
 MOMENTUM = 0.9
-NUM_STEPS = 20001
+# NUM_STEPS = 20001
+NUM_STEPS = 100
 POWER = 0.9
 RANDOM_SEED = 1234
 RESTORE_FROM = './models/deeplab_resnet.ckpt'
 SAVE_NUM_IMAGES = 2
-SAVE_PRED_EVERY = 1000
+# SAVE_PRED_EVERY = 1000
+SAVE_PRED_EVERY = 10
 SNAPSHOT_DIR = './snapshots/'
 WEIGHT_DECAY = 0.0005
 

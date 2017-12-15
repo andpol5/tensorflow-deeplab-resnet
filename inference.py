@@ -27,9 +27,9 @@ def get_arguments():
       A list of parsed arguments.
     """
     parser = argparse.ArgumentParser(description="DeepLabLFOV Network Inference.")
-    parser.add_argument("img_path", type=str,
+    parser.add_argument("--img-path", type=str,
                         help="Path to the RGB image file.")
-    parser.add_argument("model_weights", type=str,
+    parser.add_argument("--weights", type=str,
                         help="Path to the file with model weights.")
     parser.add_argument("--save-dir", type=str, default=SAVE_DIR,
                         help="Where to save predicted mask.")
@@ -86,13 +86,16 @@ def main():
     # Perform inference.
     preds = sess.run(pred)
 
+    out_filename =os.path.join(args.save_dir,
+        os.path.splitext(os.path.basename(args.img_path))[0] + ".png")
     msk = decode_labels(preds)
-    im = Image.fromarray(msk[0])
+    import bpdb; bpdb.set_trace()
+    im = Image.fromarray(msk[0]*255)
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
-    im.save(args.save_dir + 'mask.png')
+    im.save(out_filename)
 
-    print('The output file has been saved to {}'.format(args.save_dir + 'mask.png'))
+    print('The output file has been saved to {}'.format(out_filename))
 
 
 if __name__ == '__main__':

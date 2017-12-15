@@ -3,9 +3,6 @@ import os
 import numpy as np
 import tensorflow as tf
 
-IGNORE_LABEL = 255
-IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
-
 def image_scaling(img, label):
     """
     Randomly scales the images between 0.5 to 1.5 times the original size.
@@ -42,7 +39,7 @@ def image_mirroring(img, label):
     # label = tf.image.flip_left_right(label)
     return img, label
 
-def random_crop_and_pad_image_and_labels(image, label, crop_h, crop_w, ignore_label=255):
+def random_crop_and_pad_image_and_labels(image, label, crop_h, crop_w):
     """
     Randomly crop and pads the input images.
 
@@ -65,7 +62,6 @@ def random_crop_and_pad_image_and_labels(image, label, crop_h, crop_w, ignore_la
     combined_crop = tf.random_crop(combined_pad, [crop_h,crop_w,4])
     img_crop = combined_crop[:, :, :last_image_dim]
     label_crop = combined_crop[:, :, last_image_dim:]
-    label_crop = label_crop + ignore_label
     label_crop = tf.cast(label_crop, dtype=tf.uint8)
 
     # Set static shape so that tensorflow knows shape at compile time.
@@ -83,16 +79,16 @@ def read_labeled_image_list(data_dir, data_list):
     Returns:
       Two lists with all file names for images and masks, respectively.
     """
-    f = open(data_list, 'r')
     images = []
     masks = []
-    for line in f:
-        try:
-            image, mask = line.strip("\n").split(' ')
-        except ValueError: # Adhoc for test.
-            image = mask = line.strip("\n")
-        images.append(data_dir + image)
-        masks.append(data_dir + mask)
+    with open(data_list, 'r') as f:
+      for line in f:
+          try:
+              image, mask = line.strip("\n").split(' ')
+          except ValueError: # Adhoc for test.
+              image = mask = line.strip("\n")
+          images.append(data_dir + image)
+          masks.append(data_dir + mask)
     return images, masks
 
 def read_images_from_disk(input_queue, input_size, random_scale, random_mirror): # optional pre-processing arguments
