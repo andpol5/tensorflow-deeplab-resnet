@@ -31,10 +31,9 @@ RANDOM_SEED = 1234
 RESTORE_FROM = './models/deeplab_resnet.ckpt'
 SAVE_NUM_IMAGES = 2
 # SAVE_PRED_EVERY = 1000
-SAVE_PRED_EVERY = 100
+SAVE_PRED_EVERY = 20
 SNAPSHOT_DIR = './snapshots/'
 WEIGHT_DECAY = 0.0005
-
 
 def get_arguments():
     """Parse all the arguments provided from the CLI.
@@ -180,30 +179,32 @@ def main():
     l2_losses = [args.weight_decay * tf.nn.l2_loss(v)
                     for v in tf.trainable_variables() if 'weights' in v.name]
     reduced_loss = tf.reduce_mean(loss) + tf.add_n(l2_losses)
-    with tf.name_scope('scalars'):
-        tf.summary.scalar('train_loss', reduced_loss)
+
 
     # Processed predictions: for visualisation.
     raw_output_up = tf.image.resize_bilinear(raw_output, tf.shape(image_batch)[1:3,])
     raw_output_up = tf.argmax(raw_output_up, axis=3)
     pred = tf.expand_dims(raw_output_up, axis=3)
 
-    # Image summary.
-    images_summary = tf.py_func(inv_preprocess, [image_batch, args.save_num_images], tf.uint8)
-    labels_summary = tf.py_func(decode_labels, [label_batch, args.save_num_images], tf.uint8)
-    preds_summary = tf.py_func(decode_labels, [pred, args.save_num_images], tf.uint8)
-
-    total_summary = tf.summary.image('images',
-             tf.concat(axis=2, values=[images_summary, labels_summary, preds_summary]),
-             max_outputs=args.save_num_images) # Concatenate row-wise.
-    summary_writer = tf.summary.FileWriter(args.snapshot_dir, graph=tf.get_default_graph())
-
     # Define loss and optimisation parameters.
     base_lr = tf.constant(args.learning_rate)
     step_ph = tf.placeholder(dtype=tf.float32, shape=())
     learning_rate = tf.scalar_mul(base_lr, tf.pow((1 - step_ph / args.num_steps), args.power))
-    with tf.name_scope('scalars'):
-        tf.summary.scalar('learning_rate', learning_rate)
+
+    # Scalar summary
+    loss_summary = tf.summary.scalar('reduced_loss', reduced_loss)
+    lr_summmary = tf.summary.scalar('learning_rate', learning_rate)
+
+    # Image summary
+    images_summary = tf.py_func(inv_preprocess, [image_batch, args.save_num_images], tf.uint8)
+    labels_summary = tf.py_func(decode_labels, [label_batch, args.save_num_images], tf.uint8)
+    preds_summary = tf.py_func(decode_labels, [pred, args.save_num_images], tf.uint8)
+
+    im_summary = tf.summary.image('images',
+             tf.concat(axis=2, values=[images_summary, labels_summary, preds_summary]),
+             max_outputs=args.save_num_images) # Concatenate row-wise
+    total_summary = tf.summary.merge_all()
+    summary_writer = tf.summary.FileWriter(args.snapshot_dir, graph=tf.get_default_graph())
 
     opt_conv = tf.train.MomentumOptimizer(learning_rate, args.momentum)
     opt_fc_w = tf.train.MomentumOptimizer(learning_rate * 10.0, args.momentum)
@@ -250,7 +251,8 @@ def main():
 
             if step % args.save_pred_every == 0:
                 loss_value, images, labels, preds, summary, _ = sess.run([
-                    reduced_loss, image_batch, label_batch, pred, total_summary, train_op],
+                    reduced_loss, image_batch, label_batch, pred,
+                    total_summary, train_op],
                     feed_dict=feed_dict)
                 summary_writer.add_summary(summary, step)
                 save(saver, sess, args.snapshot_dir, step)
