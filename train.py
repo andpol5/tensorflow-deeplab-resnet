@@ -1,14 +1,12 @@
-"""Training script for the DeepLab-ResNet network on the PASCAL VOC dataset
-   for semantic image segmentation.
-
-This script trains the model using augmented PASCAL VOC,
-which contains approximately 10000 images for training and 1500 images for validation.
+"""
+Training script for the DeepLab-ResNet network for semantic image segmentation.
 """
 
 from __future__ import print_function
 
 import argparse
 import os
+import shutil
 import sys
 import time
 from datetime import datetime
@@ -20,20 +18,20 @@ from deeplab_resnet import DeepLabResNetModel, ImageReader, decode_labels, inv_p
 
 n_classes = 2
 
-BATCH_SIZE = 8
+BATCH_SIZE = 6
 DATA_DIRECTORY = ''
 DATA_LIST_PATH = '/home/andrei/data/deeplab_seg/train.txt'
 INPUT_SIZE = '500,250'
 LEARNING_RATE = 2.5e-4
 MOMENTUM = 0.9
 # NUM_STEPS = 20001
-NUM_STEPS = 100
+NUM_STEPS = 1000
 POWER = 0.9
 RANDOM_SEED = 1234
 RESTORE_FROM = './models/deeplab_resnet.ckpt'
 SAVE_NUM_IMAGES = 2
 # SAVE_PRED_EVERY = 1000
-SAVE_PRED_EVERY = 10
+SAVE_PRED_EVERY = 100
 SNAPSHOT_DIR = './snapshots/'
 WEIGHT_DECAY = 0.0005
 
@@ -113,6 +111,11 @@ def main():
     """Create the model and start the training."""
     args = get_arguments()
 
+    # Clear snapshot directory
+    if os.path.exists(args.snapshot_dir):
+        shutil.rmtree(args.snapshot_dir)
+    os.mkdir(args.snapshot_dir)
+
     h, w = map(int, args.input_size.split(','))
     input_size = (h, w)
 
@@ -157,7 +160,9 @@ def main():
 
     # Predictions: ignoring all predictions with labels greater or equal than n_classes
     raw_prediction = tf.reshape(raw_output, [-1, n_classes])
-    label_proc = prepare_label(label_batch, tf.stack(raw_output.get_shape()[1:3]), one_hot=False) # [batch_size, h, w]
+
+    # [batch_size, h, w]
+    label_proc = prepare_label(label_batch, tf.stack(raw_output.get_shape()[1:3]), one_hot=False)
     raw_gt = tf.reshape(label_proc, [-1,])
     indices = tf.squeeze(tf.where(tf.less_equal(raw_gt, n_classes - 1)), 1)
     gt = tf.cast(tf.gather(raw_gt, indices), tf.int32)
@@ -165,15 +170,18 @@ def main():
 
     class_weights = [1.0, # Background
                      3.0] # Foreground
-    class_weights = tf.gather(class_weights, onehot_labels)
-    class_weights = tf.gather(class_weights, labels)
-    import bpdb; bpdb.set_trace()
+    class_weights = tf.gather(class_weights, gt)
 
     # Pixel-wise softmax loss.
-    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=prediction, labels=gt, weights=class_weights)
-    l2_losses = [args.weight_decay * tf.nn.l2_loss(v) for v in tf.trainable_variables() if 'weights' in v.name]
+    #loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+    #        logits=prediction, labels=gt, weights=class_weights)
+    loss = tf.losses.sparse_softmax_cross_entropy(
+            logits=prediction, labels=gt, weights=class_weights)
+    l2_losses = [args.weight_decay * tf.nn.l2_loss(v)
+                    for v in tf.trainable_variables() if 'weights' in v.name]
     reduced_loss = tf.reduce_mean(loss) + tf.add_n(l2_losses)
-    tf.summary.scalar('train_loss', reduced_loss)
+    with tf.name_scope('scalars'):
+        tf.summary.scalar('train_loss', reduced_loss)
 
     # Processed predictions: for visualisation.
     raw_output_up = tf.image.resize_bilinear(raw_output, tf.shape(image_batch)[1:3,])
@@ -194,7 +202,8 @@ def main():
     base_lr = tf.constant(args.learning_rate)
     step_ph = tf.placeholder(dtype=tf.float32, shape=())
     learning_rate = tf.scalar_mul(base_lr, tf.pow((1 - step_ph / args.num_steps), args.power))
-    tf.summary.scalar('learning_rate', learning_rate)
+    with tf.name_scope('scalars'):
+        tf.summary.scalar('learning_rate', learning_rate)
 
     opt_conv = tf.train.MomentumOptimizer(learning_rate, args.momentum)
     opt_fc_w = tf.train.MomentumOptimizer(learning_rate * 10.0, args.momentum)
@@ -232,7 +241,7 @@ def main():
     threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
     # Iterate over training steps.
-    log_file = "train_log_" + datetime.utcnow().isoformat() + ".txt"
+    log_file = "logs/train_log_" + datetime.utcnow().isoformat() + ".txt"
 
     with open(log_file, 'w') as f:
         for step in range(args.num_steps):
@@ -240,7 +249,9 @@ def main():
             feed_dict = { step_ph : step }
 
             if step % args.save_pred_every == 0:
-                loss_value, images, labels, preds, summary, _ = sess.run([reduced_loss, image_batch, label_batch, pred, total_summary, train_op], feed_dict=feed_dict)
+                loss_value, images, labels, preds, summary, _ = sess.run([
+                    reduced_loss, image_batch, label_batch, pred, total_summary, train_op],
+                    feed_dict=feed_dict)
                 summary_writer.add_summary(summary, step)
                 save(saver, sess, args.snapshot_dir, step)
             else:
@@ -256,3 +267,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

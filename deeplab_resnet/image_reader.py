@@ -114,7 +114,7 @@ def read_images_from_disk(input_queue, input_size, random_scale, random_mirror):
     img = tf.cast(tf.concat([img_b, img_g, img_r], 2), dtype=tf.float32)
 
     # Normalize image to 0-1
-    img = tf.scalar_mul(img, 1.0/255.0)
+    img = tf.scalar_mul(1.0/255.0, img)
     label = tf.image.decode_png(label_contents, channels=1)
 
     if input_size is not None:
@@ -129,7 +129,7 @@ def read_images_from_disk(input_queue, input_size, random_scale, random_mirror):
             img, label = image_mirroring(img, label)
 
         # Randomly crops the images and labels.
-        img, label = random_crop_and_pad_image_and_labels(img, label, h, w, IGNORE_LABEL)
+        img, label = random_crop_and_pad_image_and_labels(img, label, h, w)
 
     return img, label
 
