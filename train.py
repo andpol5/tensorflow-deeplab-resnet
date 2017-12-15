@@ -11,6 +11,7 @@ import argparse
 import os
 import sys
 import time
+from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
@@ -186,6 +187,7 @@ def main():
     base_lr = tf.constant(args.learning_rate)
     step_ph = tf.placeholder(dtype=tf.float32, shape=())
     learning_rate = tf.scalar_mul(base_lr, tf.pow((1 - step_ph / args.num_steps), args.power))
+    tf.summary.scalar('learning_rate', learning_rate)
 
     opt_conv = tf.train.MomentumOptimizer(learning_rate, args.momentum)
     opt_fc_w = tf.train.MomentumOptimizer(learning_rate * 10.0, args.momentum)
@@ -223,18 +225,25 @@ def main():
     threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
     # Iterate over training steps.
-    for step in range(args.num_steps):
-        start_time = time.time()
-        feed_dict = { step_ph : step }
+    log_file = "train_log_" + datetime.utcnow().isoformat() + ".txt"
 
-        if step % args.save_pred_every == 0:
-            loss_value, images, labels, preds, summary, _ = sess.run([reduced_loss, image_batch, label_batch, pred, total_summary, train_op], feed_dict=feed_dict)
-            summary_writer.add_summary(summary, step)
-            save(saver, sess, args.snapshot_dir, step)
-        else:
-            loss_value, _ = sess.run([reduced_loss, train_op], feed_dict=feed_dict)
-        duration = time.time() - start_time
-        print('step {:d} \t loss = {:.3f}, ({:.3f} sec/step)'.format(step, loss_value, duration))
+    with open(log_file, 'w') as f:
+        for step in range(args.num_steps):
+            start_time = time.time()
+            feed_dict = { step_ph : step }
+
+            if step % args.save_pred_every == 0:
+                loss_value, images, labels, preds, summary, _ = sess.run([reduced_loss, image_batch, label_batch, pred, total_summary, train_op], feed_dict=feed_dict)
+                summary_writer.add_summary(summary, step)
+                save(saver, sess, args.snapshot_dir, step)
+            else:
+                loss_value, _ = sess.run([reduced_loss, train_op], feed_dict=feed_dict)
+            duration = time.time() - start_time
+
+            log_line = 'step {:d} \t loss = {:.5f}, ({:.3f} sec/step)'.format(step, loss_value, duration)
+            print(log_line)
+            f.write('{}\n'.format(log_line))
+
     coord.request_stop()
     coord.join(threads)
 
